@@ -6,11 +6,14 @@ use App\Http\Requests\StoreColumnRequest;
 use App\Http\Requests\UpdateColumnRequest;
 use App\Models\Board;
 use App\Models\Column;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class ColumnController extends Controller
 {
+    use AuthorizesRequests;
+
     /**
      * Store a newly created column.
      */
