@@ -19,7 +19,7 @@ export interface Project {
     color: string;
     owner_id: number;
     owner?: User;
-    members?: ProjectMember[];
+    members?: (User & { pivot?: { role: ProjectRole; created_at: string } })[];
     boards?: Board[];
     labels?: Label[];
     tasks_count?: number;
