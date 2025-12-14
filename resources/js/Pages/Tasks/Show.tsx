@@ -9,6 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
+import TimeTracker from '@/Components/TimeTracker';
 
 interface Props extends PageProps {
     task: Task;
@@ -258,6 +259,9 @@ export default function Show({ task, auth }: Props) {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Time Tracking */}
+                                <TimeTracker taskId={task.id} canEdit={canEdit ?? false} />
                             </div>
                         )}
                     </div>

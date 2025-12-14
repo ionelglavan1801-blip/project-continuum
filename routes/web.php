@@ -7,6 +7,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TimeEntryController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -65,6 +66,15 @@ Route::middleware('auth')->group(function () {
     Route::post('notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::delete('notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Time Entries
+    Route::get('tasks/{task}/time-entries', [TimeEntryController::class, 'index'])->name('tasks.time-entries.index');
+    Route::post('tasks/{task}/time-entries', [TimeEntryController::class, 'store'])->name('tasks.time-entries.store');
+    Route::post('tasks/{task}/timer/start', [TimeEntryController::class, 'start'])->name('tasks.timer.start');
+    Route::post('time-entries/{timeEntry}/stop', [TimeEntryController::class, 'stop'])->name('time-entries.stop');
+    Route::patch('time-entries/{timeEntry}', [TimeEntryController::class, 'update'])->name('time-entries.update');
+    Route::delete('time-entries/{timeEntry}', [TimeEntryController::class, 'destroy'])->name('time-entries.destroy');
+    Route::get('timer/current', [TimeEntryController::class, 'current'])->name('timer.current');
 });
 
 require __DIR__.'/auth.php';
