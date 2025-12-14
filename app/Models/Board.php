@@ -18,6 +18,7 @@ class Board extends Model
         'name',
         'description',
         'is_default',
+        'position',
     ];
 
     protected function casts(): array
