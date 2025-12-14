@@ -16,8 +16,6 @@ services:
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
-      - /var/www/html/vendor
-      - /var/www/html/node_modules
     environment:
       - APP_ENV=${APP_ENV}
       - APP_URL=${APP_URL}
@@ -56,8 +54,6 @@ services:
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
-      - /var/www/html/vendor
-      - /var/www/html/node_modules
     environment:
       - APP_ENV=${APP_ENV}
       - APP_DEBUG=${APP_DEBUG}
