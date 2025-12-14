@@ -234,4 +234,91 @@ class ProjectControllerTest extends TestCase
             ->where('projects.0.id', $project->id)
         );
     }
+
+    public function test_owner_can_invite_member(): void
+    {
+        $owner = User::factory()->create();
+        $newMember = User::factory()->create();
+        $project = Project::factory()->create(['owner_id' => $owner->id]);
+
+        $response = $this->actingAs($owner)
+            ->post(route('projects.members.store', $project), [
+                'email' => $newMember->email,
+                'role' => 'member',
+            ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('project_members', [
+            'project_id' => $project->id,
+            'user_id' => $newMember->id,
+            'role' => 'member',
+        ]);
+    }
+
+    public function test_admin_can_invite_member(): void
+    {
+        $owner = User::factory()->create();
+        $admin = User::factory()->create();
+        $newMember = User::factory()->create();
+        $project = Project::factory()->create(['owner_id' => $owner->id]);
+        $project->members()->attach($admin->id, ['role' => 'admin']);
+
+        $response = $this->actingAs($admin)
+            ->post(route('projects.members.store', $project), [
+                'email' => $newMember->email,
+                'role' => 'member',
+            ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('project_members', [
+            'project_id' => $project->id,
+            'user_id' => $newMember->id,
+        ]);
+    }
+
+    public function test_regular_member_cannot_invite(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $newMember = User::factory()->create();
+        $project = Project::factory()->create(['owner_id' => $owner->id]);
+        $project->members()->attach($member->id, ['role' => 'member']);
+
+        $response = $this->actingAs($member)
+            ->post(route('projects.members.store', $project), [
+                'email' => $newMember->email,
+            ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_cannot_invite_nonexistent_user(): void
+    {
+        $owner = User::factory()->create();
+        $project = Project::factory()->create(['owner_id' => $owner->id]);
+
+        $response = $this->actingAs($owner)
+            ->post(route('projects.members.store', $project), [
+                'email' => 'nonexistent@example.com',
+            ]);
+
+        $response->assertSessionHasErrors('email');
+    }
+
+    public function test_owner_can_remove_member(): void
+    {
+        $owner = User::factory()->create();
+        $member = User::factory()->create();
+        $project = Project::factory()->create(['owner_id' => $owner->id]);
+        $project->members()->attach($member->id, ['role' => 'member']);
+
+        $response = $this->actingAs($owner)
+            ->delete(route('projects.members.destroy', [$project, $member->id]));
+
+        $response->assertRedirect();
+        $this->assertDatabaseMissing('project_members', [
+            'project_id' => $project->id,
+            'user_id' => $member->id,
+        ]);
+    }
 }
