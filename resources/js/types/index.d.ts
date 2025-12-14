@@ -1,5 +1,7 @@
 import { Priority, ProjectRole } from '@/lib/constants';
 
+export type { Priority, ProjectRole } from '@/lib/constants';
+
 export interface User {
     id: number;
     name: string;
