@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Project, PageProps } from '@/types';
-import { Settings, Users, Plus, Trash2 } from 'lucide-react';
+import { Project, PageProps, Board } from '@/types';
+import { Settings, Users, Plus, Trash2, LayoutGrid, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import DangerButton from '@/Components/DangerButton';
@@ -14,7 +14,8 @@ interface Props extends PageProps {
 export default function Show({ project, auth }: Props) {
     const [confirmingDeletion, setConfirmingDeletion] = useState(false);
     const isOwner = project.owner_id === auth.user.id;
-    const firstBoard = project.boards?.[0];
+    const isOwnerOrAdmin = isOwner ||
+        project.members?.some(m => m.user_id === auth.user.id && m.role === 'admin');
 
     const deleteProject = () => {
         router.delete(route('projects.destroy', project.id));
@@ -90,111 +91,48 @@ export default function Show({ project, auth }: Props) {
                         </button>
                     </div>
 
-                    {/* Board Selection / Kanban Board */}
-                    {firstBoard ? (
-                        <div className="rounded-lg bg-gray-100 p-6">
-                            <div className="mb-4 flex items-center justify-between">
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                    {firstBoard.name}
-                                </h3>
-                                <button className="text-sm text-indigo-600 hover:text-indigo-500">
-                                    Board settings
-                                </button>
-                            </div>
+                    {/* Boards Section */}
+                    <div className="mb-6">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">Boards</h3>
+                            {isOwnerOrAdmin && (
+                                <Link
+                                    href={route('projects.boards.create', project.id)}
+                                    className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-500"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    New Board
+                                </Link>
+                            )}
+                        </div>
 
-                            {/* Columns */}
-                            <div className="flex gap-4 overflow-x-auto pb-4">
-                                {firstBoard.columns?.map((column) => (
-                                    <div
-                                        key={column.id}
-                                        className="w-72 flex-shrink-0 rounded-lg bg-white shadow-sm"
-                                    >
-                                        <div
-                                            className="flex items-center justify-between rounded-t-lg px-4 py-3"
-                                            style={{ borderTop: `3px solid ${column.color}` }}
-                                        >
-                                            <h4 className="font-medium text-gray-700">
-                                                {column.name}
-                                            </h4>
-                                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                                {column.tasks?.length ?? 0}
-                                            </span>
-                                        </div>
-                                        <div className="space-y-2 p-2">
-                                            {column.tasks?.map((task) => (
-                                                <div
-                                                    key={task.id}
-                                                    className="cursor-pointer rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200 hover:shadow-md"
-                                                >
-                                                    <p className="text-sm font-medium text-gray-900">
-                                                        {task.title}
-                                                    </p>
-                                                    {task.labels && task.labels.length > 0 && (
-                                                        <div className="mt-2 flex flex-wrap gap-1">
-                                                            {task.labels.map((label) => (
-                                                                <span
-                                                                    key={label.id}
-                                                                    className="rounded px-1.5 py-0.5 text-xs font-medium text-white"
-                                                                    style={{ backgroundColor: label.color }}
-                                                                >
-                                                                    {label.name}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                                                        <span className={`rounded px-1.5 py-0.5 ${
-                                                            task.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                                                            task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                                                            task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-gray-100 text-gray-700'
-                                                        }`}>
-                                                            {task.priority}
-                                                        </span>
-                                                        {task.assignees && task.assignees.length > 0 && (
-                                                            <div className="flex -space-x-1">
-                                                                {task.assignees.slice(0, 3).map((assignee) => (
-                                                                    <div
-                                                                        key={assignee.id}
-                                                                        className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-200 text-[10px] font-medium ring-1 ring-white"
-                                                                        title={assignee.name}
-                                                                    >
-                                                                        {assignee.name.charAt(0)}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            <button className="w-full rounded-md p-2 text-sm text-gray-500 hover:bg-gray-50">
-                                                <Plus className="mx-auto h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
+                        {project.boards && project.boards.length > 0 ? (
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                {project.boards.map((board) => (
+                                    <BoardCard key={board.id} board={board} />
                                 ))}
-                                <div className="w-72 flex-shrink-0">
-                                    <button className="flex h-12 w-full items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600">
-                                        <Plus className="mr-1 h-4 w-4" />
-                                        Add Column
-                                    </button>
-                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center rounded-lg bg-white p-12 text-center shadow-sm">
-                            <h3 className="text-lg font-medium text-gray-900">
-                                No boards yet
-                            </h3>
-                            <p className="mt-2 text-sm text-gray-500">
-                                Create your first board to start organizing tasks.
-                            </p>
-                            <button className="mt-6 inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
-                                <Plus className="h-4 w-4" />
-                                Create Board
-                            </button>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="flex flex-col items-center justify-center rounded-lg bg-white p-12 text-center shadow-sm">
+                                <LayoutGrid className="h-12 w-12 text-gray-400" />
+                                <h3 className="mt-4 text-lg font-medium text-gray-900">
+                                    No boards yet
+                                </h3>
+                                <p className="mt-2 text-sm text-gray-500">
+                                    Create your first board to start organizing tasks.
+                                </p>
+                                {isOwnerOrAdmin && (
+                                    <Link
+                                        href={route('projects.boards.create', project.id)}
+                                        className="mt-6 inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Create Board
+                                    </Link>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -219,5 +157,35 @@ export default function Show({ project, auth }: Props) {
                 </div>
             </Modal>
         </AuthenticatedLayout>
+    );
+}
+
+function BoardCard({ board }: { board: Board }) {
+    const taskCount = board.columns?.reduce((acc, col) => acc + (col.tasks?.length ?? 0), 0) ?? 0;
+    const columnCount = board.columns?.length ?? 0;
+
+    return (
+        <Link
+            href={route('projects.boards.show', [board.project_id, board.id])}
+            className="group block rounded-lg bg-white p-4 shadow-sm transition hover:shadow-md"
+        >
+            <div className="flex items-start justify-between">
+                <div>
+                    <h4 className="font-medium text-gray-900 group-hover:text-indigo-600">
+                        {board.name}
+                    </h4>
+                    {board.description && (
+                        <p className="mt-1 line-clamp-2 text-sm text-gray-500">
+                            {board.description}
+                        </p>
+                    )}
+                </div>
+                <ExternalLink className="h-4 w-4 text-gray-400 opacity-0 transition group-hover:opacity-100" />
+            </div>
+            <div className="mt-4 flex items-center gap-4 text-sm text-gray-500">
+                <span>{columnCount} columns</span>
+                <span>{taskCount} tasks</span>
+            </div>
+        </Link>
     );
 }
