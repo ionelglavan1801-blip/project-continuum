@@ -1,0 +1,72 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+      
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy to VPS
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
+            set -e
+            
+            echo "🚀 Starting deployment..."
+            cd ${{ secrets.DEPLOY_PATH }}
+            
+            echo "📥 Pulling latest code from GitHub..."
+            git pull origin main
+            
+            echo "🐳 Rebuilding Docker containers if needed..."
+            docker-compose build app
+            docker-compose up -d app
+            
+            echo "📦 Installing composer dependencies..."
+            docker-compose exec -T app composer install --no-interaction --prefer-dist --optimize-autoloader
+            
+            echo "🎨 Building frontend assets..."
+            docker-compose exec -T app npm install
+            docker-compose exec -T app npm run build
+            
+            echo "🗄️ Running migrations..."
+            docker-compose exec -T app php artisan migrate --force
+            
+            echo "🧹 Clearing caches..."
+            docker-compose exec -T app php artisan config:cache
+            docker-compose exec -T app php artisan route:cache
+            docker-compose exec -T app php artisan view:cache
+            
+            echo "🔄 Restarting queue worker..."
+            docker-compose restart queue
+            
+            echo "✅ Deployment completed!"
+          ENDSSH
+      
+      - name: Verify deployment
+        run: |
+          echo "⏳ Waiting 10 seconds for containers to restart..."
+          sleep 10
+          
+          echo "🔍 Checking application health..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.APP_URL }} || echo "000")
+          
+          if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "302" ]; then
+            echo "✅ Application is responding (HTTP $HTTP_CODE)"
+          else
+            echo "⚠️ Application returned HTTP $HTTP_CODE"
+          fi
