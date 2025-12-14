@@ -54,11 +54,18 @@ RUN useradd -G www-data,root -u 1000 -d /home/laravel laravel \
     && mkdir -p /home/laravel/.composer \
     && chown -R laravel:laravel /home/laravel
 
+# Copy composer files first for better caching
+COPY --chown=laravel:laravel composer.json composer.lock ./
+
+# Install PHP dependencies (without scripts to avoid bootstrap issues)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
 # Copy application files
 COPY --chown=laravel:laravel . /var/www/html
 
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Clear any cached bootstrap and regenerate autoload
+RUN rm -rf bootstrap/cache/*.php \
+    && composer dump-autoload --optimize --no-interaction
 
 # Install Node dependencies and build assets
 RUN npm ci && npm run build
