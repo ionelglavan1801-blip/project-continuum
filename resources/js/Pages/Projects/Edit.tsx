@@ -159,7 +159,7 @@ export default function Edit({ project, auth }: Props) {
 
                                 {/* Other Members */}
                                 {project.members
-                                    ?.filter((m) => m.user_id !== project.owner_id)
+                                    ?.filter((m) => m.id !== project.owner_id)
                                     .map((member) => (
                                         <div
                                             key={member.id}
@@ -167,23 +167,23 @@ export default function Edit({ project, auth }: Props) {
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-medium text-gray-700">
-                                                    {member.user?.name?.charAt(0).toUpperCase()}
+                                                    {member.name?.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-gray-900">
-                                                        {member.user?.name}
+                                                        {member.name}
                                                     </p>
                                                     <p className="text-sm text-gray-500">
-                                                        {member.user?.email}
+                                                        {member.email}
                                                     </p>
                                                 </div>
                                             </div>
                                             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                                member.role === 'admin'
+                                                member.pivot?.role === 'admin'
                                                     ? 'bg-purple-100 text-purple-800'
                                                     : 'bg-gray-100 text-gray-800'
                                             }`}>
-                                                {member.role}
+                                                {member.pivot?.role}
                                             </span>
                                         </div>
                                     ))}

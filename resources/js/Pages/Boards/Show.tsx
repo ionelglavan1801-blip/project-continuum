@@ -16,7 +16,7 @@ interface Props extends PageProps {
 export default function Show({ board, project, auth }: Props) {
     const [confirmingDeletion, setConfirmingDeletion] = useState(false);
     const isOwnerOrAdmin = project.owner_id === auth.user.id ||
-        project.members?.some(m => m.user_id === auth.user.id && m.role === 'admin');
+        project.members?.some(m => m.id === auth.user.id && m.pivot?.role === 'admin');
 
     const deleteBoard = () => {
         router.delete(route('projects.boards.destroy', [project.id, board.id]));
