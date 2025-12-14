@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Board, Project, PageProps, Column, Task, Label } from '@/types';
 import { Settings, Plus, ArrowLeft, Trash2, MoreVertical, X, Calendar } from 'lucide-react';
-import { useState, FormEvent, useRef } from 'react';
+import { useState, FormEvent, useRef, useEffect } from 'react';
 import Modal from '@/Components/Modal';
 import DangerButton from '@/Components/DangerButton';
 import SecondaryButton from '@/Components/SecondaryButton';
@@ -10,6 +10,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import InputError from '@/Components/InputError';
 import Dropdown from '@/Components/Dropdown';
+import { useBoardChannel } from '@/hooks/useBoardChannel';
 import {
     DndContext,
     DragOverlay,
@@ -43,6 +44,19 @@ export default function Show({ board, project, auth }: Props) {
     const [addingTaskToColumn, setAddingTaskToColumn] = useState<number | null>(null);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
     const [columns, setColumns] = useState(board.columns || []);
+
+    // Subscribe to real-time board updates via WebSocket
+    useBoardChannel({
+        boardId: board.id,
+        currentUserId: auth.user.id,
+        columns,
+        setColumns,
+    });
+
+    // Sync columns when board data changes (e.g., after Inertia reload)
+    useEffect(() => {
+        setColumns(board.columns || []);
+    }, [board.columns]);
 
     const isOwnerOrAdmin = project.owner_id === auth.user.id ||
         project.members?.some(m => m.id === auth.user.id && m.pivot?.role === 'admin') || false;
