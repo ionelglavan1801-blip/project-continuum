@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\TaskCreated;
+use App\Events\TaskDeleted;
+use App\Events\TaskMoved;
+use App\Events\TaskUpdated;
 use App\Http\Requests\MoveTaskRequest;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
@@ -26,11 +30,15 @@ class TaskController extends Controller
     {
         $maxPosition = $column->tasks()->max('position') ?? -1;
 
-        $column->tasks()->create([
+        $task = $column->tasks()->create([
             ...$request->validated(),
             'position' => $maxPosition + 1,
             'created_by' => auth()->id(),
         ]);
+
+        // Broadcast task creation
+        $boardId = $column->board_id;
+        event(new TaskCreated($task, $boardId, auth()->id()));
 
         return back()->with('success', 'Task created successfully.');
     }
@@ -63,6 +71,10 @@ class TaskController extends Controller
     {
         $task->update($request->validated());
 
+        // Broadcast task update
+        $boardId = $task->column->board_id;
+        event(new TaskUpdated($task->fresh(), $boardId, auth()->id()));
+
         return back()->with('success', 'Task updated successfully.');
     }
 
@@ -73,7 +85,14 @@ class TaskController extends Controller
     {
         $this->authorize('delete', $task);
 
+        $boardId = $task->column->board_id;
+        $columnId = $task->column_id;
+        $taskId = $task->id;
+
         $task->delete();
+
+        // Broadcast task deletion
+        event(new TaskDeleted($taskId, $boardId, $columnId, auth()->id()));
 
         return back()->with('success', 'Task deleted successfully.');
     }
@@ -85,6 +104,8 @@ class TaskController extends Controller
     {
         $newColumnId = $request->column_id;
         $newPosition = $request->position;
+        $fromColumnId = $task->column_id;
+        $boardId = $task->column->board_id;
 
         // If moving to a different column
         if ($task->column_id !== $newColumnId) {
@@ -118,6 +139,9 @@ class TaskController extends Controller
 
             $task->update(['position' => $newPosition]);
         }
+
+        // Broadcast task movement
+        event(new TaskMoved($task->fresh(), $boardId, $fromColumnId, $newColumnId, $newPosition, auth()->id()));
 
         return back()->with('success', 'Task moved successfully.');
     }
