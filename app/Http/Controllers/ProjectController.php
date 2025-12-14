@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateProject;
+use App\Actions\InviteMember;
+use App\Http\Requests\InviteMemberRequest;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Models\Project;
@@ -120,5 +122,44 @@ class ProjectController extends Controller
         return redirect()
             ->route('projects.index')
             ->with('success', 'Project deleted successfully.');
+    }
+
+    /**
+     * Invite a member to the project.
+     */
+    public function inviteMember(InviteMemberRequest $request, Project $project, InviteMember $inviteMember): RedirectResponse
+    {
+        try {
+            $inviteMember->execute($project, $request->validated());
+
+            return redirect()
+                ->back()
+                ->with('success', 'Member invited successfully.');
+        } catch (\InvalidArgumentException $e) {
+            return redirect()
+                ->back()
+                ->withErrors(['email' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Remove a member from the project.
+     */
+    public function removeMember(Project $project, int $userId): RedirectResponse
+    {
+        $this->authorize('update', $project);
+
+        // Cannot remove owner
+        if ($project->owner_id === $userId) {
+            return redirect()
+                ->back()
+                ->withErrors(['member' => 'Cannot remove the project owner.']);
+        }
+
+        $project->members()->detach($userId);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Member removed successfully.');
     }
 }

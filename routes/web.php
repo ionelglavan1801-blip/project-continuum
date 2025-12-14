@@ -26,6 +26,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('projects', ProjectController::class);
+    Route::post('projects/{project}/members', [ProjectController::class, 'inviteMember'])->name('projects.members.store');
+    Route::delete('projects/{project}/members/{user}', [ProjectController::class, 'removeMember'])->name('projects.members.destroy');
     Route::resource('projects.boards', BoardController::class)->except(['index']);
 });
 
