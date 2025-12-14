@@ -145,4 +145,47 @@ class TaskController extends Controller
 
         return back()->with('success', 'Tasks updated successfully.');
     }
+
+    /**
+     * Assign a user to the task.
+     */
+    public function assign(Request $request, Task $task): RedirectResponse
+    {
+        $this->authorize('update', $task);
+
+        $request->validate([
+            'user_id' => ['required', 'exists:users,id'],
+        ]);
+
+        $project = $task->column->board->project;
+        $userId = $request->user_id;
+
+        // Check if user is a project member
+        if ($project->owner_id !== $userId && ! $project->members()->where('user_id', $userId)->exists()) {
+            return back()->with('error', 'User is not a project member.');
+        }
+
+        // Prevent duplicate assignments
+        if (! $task->assignees()->where('user_id', $userId)->exists()) {
+            $task->assignees()->attach($userId);
+        }
+
+        return back()->with('success', 'User assigned to task.');
+    }
+
+    /**
+     * Unassign a user from the task.
+     */
+    public function unassign(Request $request, Task $task): RedirectResponse
+    {
+        $this->authorize('update', $task);
+
+        $request->validate([
+            'user_id' => ['required', 'exists:users,id'],
+        ]);
+
+        $task->assignees()->detach($request->user_id);
+
+        return back()->with('success', 'User unassigned from task.');
+    }
 }

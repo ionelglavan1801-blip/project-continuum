@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Task, PageProps } from '@/types';
-import { ArrowLeft, Calendar, Clock, Flag, Trash2, Edit2, X, Check, MessageSquare, User } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Flag, Trash2, Edit2, X, Check, MessageSquare, User as UserIcon, UserPlus, UserMinus, Send } from 'lucide-react';
 import { useState, FormEvent } from 'react';
 import Modal from '@/Components/Modal';
 import DangerButton from '@/Components/DangerButton';
@@ -17,12 +17,19 @@ interface Props extends PageProps {
 export default function Show({ task, auth }: Props) {
     const [confirmingDeletion, setConfirmingDeletion] = useState(false);
     const [editing, setEditing] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
 
     const project = task.column?.board?.project;
     const isOwnerOrAdmin = project?.owner_id === auth.user.id ||
         project?.members?.some(m => m.id === auth.user.id && (m as any).pivot?.role === 'admin');
     const canEdit = isOwnerOrAdmin || task.created_by === auth.user.id ||
         project?.members?.some(m => m.id === auth.user.id);
+
+    // Get project members who are not yet assigned
+    const availableMembers = [
+        ...(project?.owner_id ? [{ id: project.owner_id, name: (project as any).owner?.name || 'Owner' }] : []),
+        ...(project?.members || []),
+    ].filter(m => !task.assignees?.some(a => a.id === m.id));
 
     const deleteTask = () => {
         router.delete(route('tasks.destroy', task.id), {
@@ -31,6 +38,18 @@ export default function Show({ task, auth }: Props) {
                     router.visit(route('projects.boards.show', [task.column.board.project.id, task.column.board.id]));
                 }
             },
+        });
+    };
+
+    const assignUser = (userId: number) => {
+        router.post(route('tasks.assign', task.id), { user_id: userId }, {
+            preserveScroll: true,
+        });
+    };
+
+    const unassignUser = (userId: number) => {
+        router.post(route('tasks.unassign', task.id), { user_id: userId }, {
+            preserveScroll: true,
         });
     };
 
@@ -130,7 +149,7 @@ export default function Show({ task, auth }: Props) {
                                     )}
                                     {task.creator && (
                                         <div className="flex items-center gap-2 text-sm text-gray-600">
-                                            <User className="h-4 w-4 text-gray-400" />
+                                            <UserIcon className="h-4 w-4 text-gray-400" />
                                             <span>By: {task.creator.name}</span>
                                         </div>
                                     )}
@@ -155,24 +174,45 @@ export default function Show({ task, auth }: Props) {
                                 )}
 
                                 {/* Assignees */}
-                                {task.assignees && task.assignees.length > 0 && (
-                                    <div className="mb-6">
-                                        <h3 className="mb-2 text-sm font-medium text-gray-700">Assignees</h3>
+                                <div className="mb-6">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-sm font-medium text-gray-700">Assignees</h3>
+                                        {canEdit && availableMembers.length > 0 && (
+                                            <button
+                                                onClick={() => setShowAssignModal(true)}
+                                                className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"
+                                            >
+                                                <UserPlus className="h-4 w-4" />
+                                                Add
+                                            </button>
+                                        )}
+                                    </div>
+                                    {task.assignees && task.assignees.length > 0 ? (
                                         <div className="flex flex-wrap gap-2">
                                             {task.assignees.map((assignee) => (
                                                 <div
                                                     key={assignee.id}
-                                                    className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1"
+                                                    className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 group"
                                                 >
                                                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-700">
                                                         {assignee.name.charAt(0).toUpperCase()}
                                                     </div>
                                                     <span className="text-sm text-gray-700">{assignee.name}</span>
+                                                    {canEdit && (
+                                                        <button
+                                                            onClick={() => unassignUser(assignee.id)}
+                                                            className="hidden group-hover:block text-gray-400 hover:text-red-500"
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
-                                    </div>
-                                )}
+                                    ) : (
+                                        <p className="text-sm text-gray-500">No assignees yet</p>
+                                    )}
+                                </div>
 
                                 {/* Subtasks */}
                                 {task.subtasks && task.subtasks.length > 0 && (
@@ -190,39 +230,74 @@ export default function Show({ task, auth }: Props) {
                                 )}
 
                                 {/* Comments */}
-                                {task.comments && task.comments.length > 0 && (
-                                    <div>
-                                        <h3 className="mb-4 flex items-center gap-2 text-sm font-medium text-gray-700">
-                                            <MessageSquare className="h-4 w-4" />
-                                            Comments ({task.comments.length})
-                                        </h3>
-                                        <div className="space-y-4">
+                                <div className="border-t pt-6">
+                                    <h3 className="mb-4 flex items-center gap-2 text-sm font-medium text-gray-700">
+                                        <MessageSquare className="h-4 w-4" />
+                                        Comments ({task.comments?.length || 0})
+                                    </h3>
+
+                                    {/* Add Comment Form */}
+                                    {canEdit && (
+                                        <CommentForm taskId={task.id} />
+                                    )}
+
+                                    {/* Comments List */}
+                                    {task.comments && task.comments.length > 0 && (
+                                        <div className="mt-4 space-y-4">
                                             {task.comments.map((comment) => (
-                                                <div key={comment.id} className="flex gap-3">
-                                                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
-                                                        {comment.user?.name.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm font-medium text-gray-900">
-                                                                {comment.user?.name}
-                                                            </span>
-                                                            <span className="text-xs text-gray-400">
-                                                                {new Date(comment.created_at).toLocaleString()}
-                                                            </span>
-                                                        </div>
-                                                        <p className="mt-1 text-sm text-gray-600">{comment.content}</p>
-                                                    </div>
-                                                </div>
+                                                <CommentItem
+                                                    key={comment.id}
+                                                    comment={comment}
+                                                    currentUserId={auth.user.id}
+                                                    canDelete={
+                                                        comment.user_id === auth.user.id ||
+                                                        isOwnerOrAdmin === true
+                                                    }
+                                                />
                                             ))}
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Assign User Modal */}
+            <Modal show={showAssignModal} onClose={() => setShowAssignModal(false)}>
+                <div className="p-6">
+                    <h2 className="text-lg font-medium text-gray-900 mb-4">
+                        Assign User
+                    </h2>
+                    {availableMembers.length > 0 ? (
+                        <div className="space-y-2">
+                            {availableMembers.map((member) => (
+                                <button
+                                    key={member.id}
+                                    onClick={() => {
+                                        assignUser(member.id);
+                                        setShowAssignModal(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 text-left"
+                                >
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
+                                        {member.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="text-sm text-gray-900">{member.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500">All project members are already assigned.</p>
+                    )}
+                    <div className="mt-6 flex justify-end">
+                        <SecondaryButton onClick={() => setShowAssignModal(false)}>
+                            Close
+                        </SecondaryButton>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Delete Confirmation Modal */}
             <Modal show={confirmingDeletion} onClose={() => setConfirmingDeletion(false)}>
@@ -244,6 +319,126 @@ export default function Show({ task, auth }: Props) {
                 </div>
             </Modal>
         </AuthenticatedLayout>
+    );
+}
+
+// Comment Form Component
+function CommentForm({ taskId }: { taskId: number }) {
+    const { data, setData, post, processing, reset, errors } = useForm({
+        content: '',
+    });
+
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+        post(route('tasks.comments.store', taskId), {
+            preserveScroll: true,
+            onSuccess: () => reset(),
+        });
+    };
+
+    return (
+        <form onSubmit={submit} className="flex gap-2">
+            <textarea
+                value={data.content}
+                onChange={(e) => setData('content', e.target.value)}
+                placeholder="Add a comment..."
+                rows={2}
+                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+            />
+            <button
+                type="submit"
+                disabled={processing || !data.content.trim()}
+                className="self-end px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <Send className="h-4 w-4" />
+            </button>
+        </form>
+    );
+}
+
+// Comment Item Component
+function CommentItem({ comment, currentUserId, canDelete }: { comment: any; currentUserId: number; canDelete: boolean }) {
+    const [editing, setEditing] = useState(false);
+    const { data, setData, patch, processing } = useForm({
+        content: comment.content,
+    });
+
+    const handleUpdate = (e: FormEvent) => {
+        e.preventDefault();
+        patch(route('comments.update', comment.id), {
+            preserveScroll: true,
+            onSuccess: () => setEditing(false),
+        });
+    };
+
+    const handleDelete = () => {
+        if (confirm('Delete this comment?')) {
+            router.delete(route('comments.destroy', comment.id), {
+                preserveScroll: true,
+            });
+        }
+    };
+
+    return (
+        <div className="flex gap-3">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
+                {comment.user?.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">
+                        {comment.user?.name}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                        {new Date(comment.created_at).toLocaleString()}
+                    </span>
+                    {comment.user_id === currentUserId && (
+                        <button
+                            onClick={() => setEditing(!editing)}
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                        >
+                            Edit
+                        </button>
+                    )}
+                    {canDelete && (
+                        <button
+                            onClick={handleDelete}
+                            className="text-xs text-gray-400 hover:text-red-600"
+                        >
+                            Delete
+                        </button>
+                    )}
+                </div>
+                {editing ? (
+                    <form onSubmit={handleUpdate} className="mt-1">
+                        <textarea
+                            value={data.content}
+                            onChange={(e) => setData('content', e.target.value)}
+                            rows={2}
+                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                        />
+                        <div className="mt-2 flex gap-2">
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                className="text-xs px-2 py-1 bg-indigo-600 text-white rounded"
+                            >
+                                Save
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setEditing(false)}
+                                className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <p className="mt-1 text-sm text-gray-600">{comment.content}</p>
+                )}
+            </div>
+        </div>
     );
 }
 

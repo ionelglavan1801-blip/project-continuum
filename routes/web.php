@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\ColumnController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
@@ -48,6 +49,15 @@ Route::middleware('auth')->group(function () {
     Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
     Route::post('tasks/{task}/move', [TaskController::class, 'move'])->name('tasks.move');
     Route::post('tasks/batch-move', [TaskController::class, 'batchMove'])->name('tasks.batch-move');
+
+    // Task Assignees
+    Route::post('tasks/{task}/assign', [TaskController::class, 'assign'])->name('tasks.assign');
+    Route::post('tasks/{task}/unassign', [TaskController::class, 'unassign'])->name('tasks.unassign');
+
+    // Comments
+    Route::post('tasks/{task}/comments', [CommentController::class, 'store'])->name('tasks.comments.store');
+    Route::patch('comments/{comment}', [CommentController::class, 'update'])->name('comments.update');
+    Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
 });
 
 require __DIR__.'/auth.php';
