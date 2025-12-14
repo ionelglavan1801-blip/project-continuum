@@ -54,6 +54,19 @@ RUN useradd -G www-data,root -u 1000 -d /home/laravel laravel \
     && mkdir -p /home/laravel/.composer \
     && chown -R laravel:laravel /home/laravel
 
+# Copy application files
+COPY --chown=laravel:laravel . /var/www/html
+
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Install Node dependencies and build assets
+RUN npm ci && npm run build
+
+# Set proper permissions
+RUN chown -R laravel:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
 # Expose port 9000 for PHP-FPM
 EXPOSE 9000
 
