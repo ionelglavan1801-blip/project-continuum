@@ -7,6 +7,8 @@ use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Models\Column;
 use App\Models\Task;
+use App\Models\User;
+use App\Notifications\TaskAssignedNotification;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -168,6 +170,12 @@ class TaskController extends Controller
         // Prevent duplicate assignments
         if (! $task->assignees()->where('user_id', $userId)->exists()) {
             $task->assignees()->attach($userId);
+
+            // Send notification to the assigned user (if not self-assign)
+            $assignedUser = User::find($userId);
+            if ($assignedUser && $assignedUser->id !== auth()->id()) {
+                $assignedUser->notify(new TaskAssignedNotification($task, auth()->user()));
+            }
         }
 
         return back()->with('success', 'User assigned to task.');
