@@ -1,15 +1,32 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Board, Project, PageProps, Column, Task, Label } from '@/types';
-import { Settings, Plus, ArrowLeft, Trash2, MoreVertical, X, Calendar } from 'lucide-react';
+import { Settings, Plus, ArrowLeft, Trash2, MoreVertical, X, Calendar, Check } from 'lucide-react';
 import { useState, FormEvent, useRef, useEffect } from 'react';
-import Modal from '@/Components/Modal';
-import DangerButton from '@/Components/DangerButton';
-import SecondaryButton from '@/Components/SecondaryButton';
-import PrimaryButton from '@/Components/PrimaryButton';
-import TextInput from '@/Components/TextInput';
-import InputError from '@/Components/InputError';
-import Dropdown from '@/Components/Dropdown';
+import { Button } from '@/Components/ui/button';
+import { Input } from '@/Components/ui/input';
+import { Badge } from '@/Components/ui/badge';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/Components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/Components/ui/dropdown-menu';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/ui/select';
 import { useBoardChannel } from '@/hooks/useBoardChannel';
 import {
     DndContext,
@@ -191,39 +208,38 @@ export default function Show({ board, project, auth }: Props) {
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <Link
-                            href={route('projects.show', project.id)}
-                            className="text-gray-500 hover:text-gray-700"
-                        >
-                            <ArrowLeft className="h-5 w-5" />
-                        </Link>
+                        <Button variant="ghost" size="icon" asChild>
+                            <Link href={route('projects.show', project.id)}>
+                                <ArrowLeft className="h-5 w-5" />
+                            </Link>
+                        </Button>
                         <div
                             className="h-6 w-6 rounded"
                             style={{ backgroundColor: project.color }}
                         />
                         <div>
-                            <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                            <h2 className="text-xl font-semibold leading-tight text-foreground">
                                 {board.name}
                             </h2>
-                            <p className="text-sm text-gray-500">{project.name}</p>
+                            <p className="text-sm text-muted-foreground">{project.name}</p>
                         </div>
                     </div>
                     {isOwnerOrAdmin && (
                         <div className="flex items-center gap-2">
-                            <Link
-                                href={route('projects.boards.edit', [project.id, board.id])}
-                                className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-                            >
-                                <Settings className="h-4 w-4" />
-                                Settings
-                            </Link>
+                            <Button variant="outline" asChild>
+                                <Link href={route('projects.boards.edit', [project.id, board.id])}>
+                                    <Settings className="h-4 w-4" />
+                                    Settings
+                                </Link>
+                            </Button>
                             {!board.is_default && (
-                                <button
+                                <Button
+                                    variant="destructive"
+                                    size="icon"
                                     onClick={() => setConfirmingDeletion(true)}
-                                    className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
                                 >
                                     <Trash2 className="h-4 w-4" />
-                                </button>
+                                </Button>
                             )}
                         </div>
                     )}
@@ -264,13 +280,14 @@ export default function Show({ board, project, auth }: Props) {
                                     onCancel={() => setAddingColumn(false)}
                                 />
                             ) : (
-                                <button
+                                <Button
+                                    variant="outline"
+                                    className="h-12 w-full border-dashed"
                                     onClick={() => setAddingColumn(true)}
-                                    className="flex h-12 w-full items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600"
                                 >
                                     <Plus className="mr-1 h-4 w-4" />
                                     Add Column
-                                </button>
+                                </Button>
                             )}
                         </div>
                     </div>
@@ -281,25 +298,25 @@ export default function Show({ board, project, auth }: Props) {
                 </DragOverlay>
             </DndContext>
 
-            <Modal show={confirmingDeletion} onClose={() => setConfirmingDeletion(false)}>
-                <div className="p-6">
-                    <h2 className="text-lg font-medium text-gray-900">
-                        Delete Board
-                    </h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Are you sure you want to delete "{board.name}"? All columns and tasks
-                        in this board will be permanently removed.
-                    </p>
-                    <div className="mt-6 flex justify-end gap-3">
-                        <SecondaryButton onClick={() => setConfirmingDeletion(false)}>
+            <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Board</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete "{board.name}"? All columns and tasks
+                            in this board will be permanently removed.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setConfirmingDeletion(false)}>
                             Cancel
-                        </SecondaryButton>
-                        <DangerButton onClick={deleteBoard}>
+                        </Button>
+                        <Button variant="destructive" onClick={deleteBoard}>
                             Delete Board
-                        </DangerButton>
-                    </div>
-                </div>
-            </Modal>
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }
@@ -322,22 +339,24 @@ function AddColumnForm({ boardId, onCancel }: { boardId: number; onCancel: () =>
     };
 
     return (
-        <form onSubmit={submit} className="w-72 rounded-lg bg-gray-100 p-3">
-            <TextInput
+        <form onSubmit={submit} className="w-72 rounded-lg bg-muted p-3">
+            <Input
                 value={data.name}
                 onChange={(e) => setData('name', e.target.value)}
                 placeholder="Column name"
                 className="mb-2 w-full"
                 autoFocus
             />
-            <InputError message={errors.name} className="mb-2" />
+            {errors.name && (
+                <p className="mb-2 text-sm text-destructive">{errors.name}</p>
+            )}
             <div className="flex gap-2">
-                <PrimaryButton type="submit" disabled={processing}>
+                <Button type="submit" size="sm" disabled={processing}>
                     Add
-                </PrimaryButton>
-                <SecondaryButton type="button" onClick={onCancel}>
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={onCancel}>
                     Cancel
-                </SecondaryButton>
+                </Button>
             </div>
         </form>
     );
@@ -383,63 +402,62 @@ function ColumnComponent({
     const tasks = column.tasks || [];
 
     return (
-        <div className="flex h-full w-72 flex-shrink-0 flex-col rounded-lg bg-gray-100">
+        <div className="flex h-full w-72 flex-shrink-0 flex-col rounded-lg bg-muted">
             <div
                 className="flex items-center justify-between rounded-t-lg px-4 py-3"
                 style={{ borderTop: `3px solid ${column.color}` }}
             >
                 {editing ? (
                     <form onSubmit={updateColumn} className="flex flex-1 items-center gap-2">
-                        <TextInput
+                        <Input
                             value={data.name}
                             onChange={(e) => setData('name', e.target.value)}
                             className="flex-1 text-sm"
                             autoFocus
                         />
-                        <button type="submit" className="text-green-600 hover:text-green-700">
-                            <Plus className="h-4 w-4" />
-                        </button>
-                        <button
+                        <Button type="submit" variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700">
+                            <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
                             onClick={() => {
                                 reset();
                                 setEditing(false);
                             }}
-                            className="text-gray-400 hover:text-gray-600"
                         >
                             <X className="h-4 w-4" />
-                        </button>
+                        </Button>
                     </form>
                 ) : (
                     <>
                         <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-gray-700">{column.name}</h3>
-                            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
+                            <h3 className="font-medium text-foreground">{column.name}</h3>
+                            <Badge variant="secondary" className="rounded-full">
                                 {tasks.length}
-                            </span>
+                            </Badge>
                         </div>
                         {isOwnerOrAdmin && (
-                            <Dropdown>
-                                <Dropdown.Trigger>
-                                    <button className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
                                         <MoreVertical className="h-4 w-4" />
-                                    </button>
-                                </Dropdown.Trigger>
-                                <Dropdown.Content>
-                                    <button
-                                        onClick={() => setEditing(true)}
-                                        className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                                    >
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => setEditing(true)}>
                                         Edit Column
-                                    </button>
-                                    <button
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
                                         onClick={() => setConfirmingDeletion(true)}
-                                        className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
+                                        className="text-destructive"
                                     >
                                         Delete Column
-                                    </button>
-                                </Dropdown.Content>
-                            </Dropdown>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </>
                 )}
@@ -459,38 +477,39 @@ function ColumnComponent({
                         onCancel={onCancelAddTask}
                     />
                 ) : (
-                    <button
+                    <Button
+                        variant="ghost"
+                        className="w-full"
                         onClick={onStartAddTask}
-                        className="w-full rounded-md p-2 text-sm text-gray-500 hover:bg-gray-200"
                     >
-                        <Plus className="mx-auto h-4 w-4" />
-                    </button>
+                        <Plus className="h-4 w-4" />
+                    </Button>
                 )}
             </div>
 
-            <Modal show={confirmingDeletion} onClose={() => setConfirmingDeletion(false)}>
-                <div className="p-6">
-                    <h2 className="text-lg font-medium text-gray-900">
-                        Delete Column
-                    </h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Are you sure you want to delete "{column.name}"?
-                        {tasks.length > 0 && (
-                            <span className="text-red-600">
-                                {' '}This column has {tasks.length} task(s) that will also be deleted.
-                            </span>
-                        )}
-                    </p>
-                    <div className="mt-6 flex justify-end gap-3">
-                        <SecondaryButton onClick={() => setConfirmingDeletion(false)}>
+            <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete Column</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete "{column.name}"?
+                            {tasks.length > 0 && (
+                                <span className="text-destructive">
+                                    {' '}This column has {tasks.length} task(s) that will also be deleted.
+                                </span>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setConfirmingDeletion(false)}>
                             Cancel
-                        </SecondaryButton>
-                        <DangerButton onClick={deleteColumn}>
+                        </Button>
+                        <Button variant="destructive" onClick={deleteColumn}>
                             Delete Column
-                        </DangerButton>
-                    </div>
-                </div>
-            </Modal>
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -513,33 +532,36 @@ function AddTaskForm({ columnId, onCancel }: { columnId: number; onCancel: () =>
     };
 
     return (
-        <form onSubmit={submit} className="rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200">
-            <TextInput
+        <form onSubmit={submit} className="rounded-md bg-card p-3 shadow-sm border">
+            <Input
                 value={data.title}
                 onChange={(e) => setData('title', e.target.value)}
                 placeholder="Task title"
                 className="mb-2 w-full text-sm"
                 autoFocus
             />
-            <InputError message={errors.title} className="mb-2" />
+            {errors.title && (
+                <p className="mb-2 text-sm text-destructive">{errors.title}</p>
+            )}
             <div className="flex items-center justify-between">
-                <select
-                    value={data.priority}
-                    onChange={(e) => setData('priority', e.target.value)}
-                    className="rounded-md border-gray-300 text-xs"
-                >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                </select>
+                <Select value={data.priority} onValueChange={(value) => setData('priority', value)}>
+                    <SelectTrigger className="w-24 h-8 text-xs">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                </Select>
                 <div className="flex gap-2">
-                    <SecondaryButton type="button" onClick={onCancel} className="text-xs">
+                    <Button type="button" variant="outline" size="sm" onClick={onCancel}>
                         Cancel
-                    </SecondaryButton>
-                    <PrimaryButton type="submit" disabled={processing} className="text-xs">
+                    </Button>
+                    <Button type="submit" size="sm" disabled={processing}>
                         Add
-                    </PrimaryButton>
+                    </Button>
                 </div>
             </div>
         </form>
@@ -573,44 +595,43 @@ function TaskCard({ task }: { task: Task }) {
     return (
         <Link
             href={route('tasks.show', task.id)}
-            className="block cursor-pointer rounded-md bg-white p-3 shadow-sm ring-1 ring-gray-200 transition hover:shadow-md"
+            className="block cursor-pointer rounded-md bg-card p-3 shadow-sm border transition hover:shadow-md"
         >
-            <p className="text-sm font-medium text-gray-900">{task.title}</p>
+            <p className="text-sm font-medium text-foreground">{task.title}</p>
             {task.labels && task.labels.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                     {task.labels.map((label) => (
-                        <span
+                        <Badge
                             key={label.id}
-                            className="rounded px-1.5 py-0.5 text-xs font-medium text-white"
                             style={{ backgroundColor: label.color }}
+                            className="text-white"
                         >
                             {label.name}
-                        </span>
+                        </Badge>
                     ))}
                 </div>
             )}
-            <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                <span className={`rounded px-1.5 py-0.5 ${
-                    task.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                    task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                    task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-gray-100 text-gray-700'
-                }`}>
+            <div className="mt-2 flex items-center justify-between text-xs">
+                <Badge variant={
+                    task.priority === 'urgent' ? 'destructive' :
+                    task.priority === 'high' ? 'default' :
+                    'secondary'
+                }>
                     {task.priority}
-                </span>
+                </Badge>
                 {task.assignees && task.assignees.length > 0 && (
                     <div className="flex -space-x-1">
                         {task.assignees.slice(0, 3).map((assignee) => (
                             <div
                                 key={assignee.id}
-                                className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-medium text-indigo-700 ring-1 ring-white"
+                                className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary ring-1 ring-background"
                                 title={assignee.name}
                             >
                                 {assignee.name.charAt(0).toUpperCase()}
                             </div>
                         ))}
                         {task.assignees.length > 3 && (
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-medium text-gray-600 ring-1 ring-white">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground ring-1 ring-background">
                                 +{task.assignees.length - 3}
                             </div>
                         )}
@@ -618,7 +639,7 @@ function TaskCard({ task }: { task: Task }) {
                 )}
             </div>
             {task.due_date && (
-                <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
+                <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3" />
                     {new Date(task.due_date).toLocaleDateString()}
                 </div>
@@ -629,17 +650,16 @@ function TaskCard({ task }: { task: Task }) {
 
 function TaskCardOverlay({ task }: { task: Task }) {
     return (
-        <div className="cursor-grabbing rounded-md bg-white p-3 shadow-lg ring-1 ring-gray-200">
-            <p className="text-sm font-medium text-gray-900">{task.title}</p>
+        <div className="cursor-grabbing rounded-md bg-card p-3 shadow-lg border">
+            <p className="text-sm font-medium text-foreground">{task.title}</p>
             <div className="mt-2 text-xs">
-                <span className={`rounded px-1.5 py-0.5 ${
-                    task.priority === 'urgent' ? 'bg-red-100 text-red-700' :
-                    task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                    task.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-gray-100 text-gray-700'
-                }`}>
+                <Badge variant={
+                    task.priority === 'urgent' ? 'destructive' :
+                    task.priority === 'high' ? 'default' :
+                    'secondary'
+                }>
                     {task.priority}
-                </span>
+                </Badge>
             </div>
         </div>
     );
