@@ -34,7 +34,7 @@ jobs:
             git pull origin main
             
             echo "🔧 Fixing file permissions..."
-            sudo chown -R 1001:1001 storage bootstrap/cache
+            chown -R 1001:1001 storage bootstrap/cache 2>/dev/null || true
             chmod -R 775 storage bootstrap/cache
             
             echo "🐳 Rebuilding Docker containers..."
