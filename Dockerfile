@@ -49,6 +49,12 @@ RUN echo "memory_limit=512M" >> /usr/local/etc/php/conf.d/docker-php-memlimit.in
     && echo "upload_max_filesize=100M" >> /usr/local/etc/php/conf.d/docker-php-uploads.ini \
     && echo "post_max_size=100M" >> /usr/local/etc/php/conf.d/docker-php-uploads.ini
 
+# Configure PHP-FPM to listen on all interfaces (modify existing config)
+RUN sed -i 's/listen = 127.0.0.1:9000/listen = 0.0.0.0:9000/' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/^listen = 9000$/listen = 0.0.0.0:9000/' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/^listen = 9000$/listen = 0.0.0.0:9000/' /usr/local/etc/php-fpm.d/docker.conf 2>/dev/null || true \
+    && sed -i 's/^listen = 9000$/listen = 0.0.0.0:9000/' /usr/local/etc/php-fpm.d/zz-docker.conf 2>/dev/null || true
+
 # Create system user
 RUN useradd -G www-data,root -u 1000 -d /home/laravel laravel \
     && mkdir -p /home/laravel/.composer \
