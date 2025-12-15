@@ -59,9 +59,31 @@ class BoardController extends Controller
             'columns.tasks.labels',
         ]);
 
+        // Get recent activity logs for tasks on this board
+        $taskIds = $board->columns->flatMap(fn ($col) => $col->tasks->pluck('id'))->toArray();
+
+        $recentActivity = \App\Models\ActivityLog::with('user')
+            ->where('loggable_type', \App\Models\Task::class)
+            ->whereIn('loggable_id', $taskIds)
+            ->latest('created_at')
+            ->take(20)
+            ->get()
+            ->map(fn ($log) => [
+                'id' => $log->id,
+                'action' => $log->action,
+                'changes' => $log->changes,
+                'created_at' => $log->created_at->toISOString(),
+                'user' => $log->user ? [
+                    'id' => $log->user->id,
+                    'name' => $log->user->name,
+                ] : null,
+                'task_id' => $log->loggable_id,
+            ]);
+
         return Inertia::render('Boards/Show', [
             'board' => $board,
             'project' => $project,
+            'recentActivity' => $recentActivity,
         ]);
     }
 
