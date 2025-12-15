@@ -1,10 +1,3 @@
-# =============================================================================
-# BASE Docker Compose - Project Continuum
-# =============================================================================
-# Dev:  docker compose up (încarcă automat + override.yml)
-# Prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-# =============================================================================
-
 services:
   # Laravel Application (PHP-FPM)
   app:
@@ -38,6 +31,7 @@ services:
       - MAIL_PORT=${MAIL_PORT}
       - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
       - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+      - RESEND_API_KEY=${RESEND_API_KEY}
     depends_on:
       mysql:
         condition: service_healthy
@@ -54,8 +48,8 @@ services:
     ports:
       - "${APP_PORT:-8091}:80"
     volumes:
-      - .:/var/www/html:ro
-      - ./docker/nginx:/etc/nginx/conf.d:ro
+      - .:/var/www/html
+      - ./docker/nginx:/etc/nginx/conf.d
     depends_on:
       - app
     networks:
@@ -101,6 +95,94 @@ services:
       retries: 5
     networks:
       - project_continuum
+
+  # Queue Worker
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: project_continuum_app:latest
+    container_name: project_continuum_queue
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV}
+      - APP_URL=${APP_URL}
+      - DB_CONNECTION=${DB_CONNECTION}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - CACHE_STORE=${CACHE_STORE}
+      - QUEUE_CONNECTION=${QUEUE_CONNECTION}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - MAIL_MAILER=${MAIL_MAILER}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+    command: php artisan queue:work --verbose --tries=3 --timeout=90 --sleep=3
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - project_continuum
+
+  # Reverb (WebSocket Server for Real-time)
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: project_continuum_app:latest
+    container_name: project_continuum_reverb
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV}
+      - APP_DEBUG=${APP_DEBUG}
+      - DB_CONNECTION=${DB_CONNECTION}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      - REVERB_SERVER_HOST=0.0.0.0
+      - REVERB_SERVER_PORT=${REVERB_SERVER_PORT:-8095}
+      - REVERB_APP_ID=${REVERB_APP_ID}
+      - REVERB_APP_KEY=${REVERB_APP_KEY}
+      - REVERB_APP_SECRET=${REVERB_APP_SECRET}
+    command: php artisan reverb:start --host=0.0.0.0 --port=${REVERB_SERVER_PORT:-8095}
+    ports:
+      - "${REVERB_SERVER_PORT:-8095}:${REVERB_SERVER_PORT:-8095}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - project_continuum
+
+  # Cloudflare Tunnel (HTTPS via Cloudflare)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: project_continuum_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    networks:
+      - project_continuum
+    profiles:
+      - with-cloudflare
 
 networks:
   project_continuum:
