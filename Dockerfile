@@ -54,25 +54,15 @@ RUN useradd -G www-data,root -u 1000 -d /home/laravel laravel \
     && mkdir -p /home/laravel/.composer \
     && chown -R laravel:laravel /home/laravel
 
-# Copy composer files first for better caching
-COPY --chown=laravel:laravel composer.json composer.lock ./
-
-# Install PHP dependencies (without scripts to avoid bootstrap issues)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
-
 # Copy application files
 COPY --chown=laravel:laravel . /var/www/html
-
-# Clear any cached bootstrap and regenerate autoload
-RUN rm -rf bootstrap/cache/*.php \
-    && composer dump-autoload --optimize --no-interaction
 
 # Set proper permissions
 RUN chown -R laravel:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-# Note: Frontend build (npm) is done outside Docker before container build
-# This avoids permission issues and speeds up deployment
+# Note: Composer and npm installs are done after container starts
+# This ensures correct PHP version and avoids permission issues
 
 # Expose port 9000 for PHP-FPM
 EXPOSE 9000
