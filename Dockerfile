@@ -67,12 +67,12 @@ COPY --chown=laravel:laravel . /var/www/html
 RUN rm -rf bootstrap/cache/*.php \
     && composer dump-autoload --optimize --no-interaction
 
-# Install Node dependencies and build assets
-RUN npm ci && npm run build
-
 # Set proper permissions
 RUN chown -R laravel:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+# Note: Frontend build (npm) is done outside Docker before container build
+# This avoids permission issues and speeds up deployment
 
 # Expose port 9000 for PHP-FPM
 EXPOSE 9000

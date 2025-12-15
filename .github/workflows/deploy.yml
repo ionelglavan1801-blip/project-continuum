@@ -32,16 +32,16 @@ jobs:
             echo "📥 Pulling latest code from GitHub..."
             git pull origin main
             
+            echo "📦 Installing composer dependencies..."
+            composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+            
+            echo "🎨 Building frontend assets..."
+            npm ci --prefer-offline --no-audit
+            npm run build
+            
             echo "🐳 Rebuilding Docker containers..."
             docker compose -f docker-compose.yml -f docker-compose.prod.yml build app
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-            
-            echo "📦 Installing composer dependencies..."
-            docker compose exec -T app composer install --no-interaction --prefer-dist --optimize-autoloader
-            
-            echo "🎨 Building frontend assets..."
-            docker compose exec -T app npm install
-            docker compose exec -T app npm run build
             
             echo "🗄️ Running migrations..."
             docker compose exec -T app php artisan migrate --force
