@@ -1,5 +1,8 @@
 FROM php:8.4-fpm
 
+# Accept build argument for UID
+ARG UID=1000
+
 # Set working directory
 WORKDIR /var/www/html
 
@@ -49,8 +52,8 @@ RUN echo "memory_limit=512M" >> /usr/local/etc/php/conf.d/docker-php-memlimit.in
     && echo "upload_max_filesize=100M" >> /usr/local/etc/php/conf.d/docker-php-uploads.ini \
     && echo "post_max_size=100M" >> /usr/local/etc/php/conf.d/docker-php-uploads.ini
 
-# Create system user
-RUN useradd -G www-data,root -u 1000 -d /home/laravel laravel \
+# Create system user with specified UID
+RUN useradd -G www-data,root -u ${UID} -d /home/laravel laravel \
     && mkdir -p /home/laravel/.composer \
     && chown -R laravel:laravel /home/laravel
 

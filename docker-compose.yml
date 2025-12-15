@@ -4,10 +4,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        UID: 1001
     image: project_continuum_app:latest
     container_name: project_continuum_app
     restart: unless-stopped
     working_dir: /var/www/html
+    user: "1001:1001"
     volumes:
       - .:/var/www/html
     environment:
