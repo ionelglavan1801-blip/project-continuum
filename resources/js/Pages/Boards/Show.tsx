@@ -1,7 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Board, Project, PageProps, Column, Task, Label } from '@/types';
-import { Settings, Plus, ArrowLeft, Trash2, MoreVertical, X, Calendar, Check } from 'lucide-react';
+import { Settings, Plus, ArrowLeft, Trash2, MoreVertical, X, Calendar, Check, History } from 'lucide-react';
+import { toast } from 'sonner';
 import { useState, FormEvent, useRef, useEffect } from 'react';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -39,6 +40,7 @@ import {
     DragStartEvent,
     DragEndEvent,
     DragOverEvent,
+    useDroppable,
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -49,18 +51,30 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { ActivityFeed } from '@/Components/ActivityFeed';
+
+interface ActivityLog {
+    id: number;
+    action: string;
+    changes: Record<string, unknown> | null;
+    created_at: string;
+    user: { id: number; name: string } | null;
+    task_id: number;
+}
 
 interface Props extends PageProps {
     board: Board;
     project: Project;
+    recentActivity?: ActivityLog[];
 }
 
-export default function Show({ board, project, auth }: Props) {
+export default function Show({ board, project, auth, recentActivity = [] }: Props) {
     const [confirmingDeletion, setConfirmingDeletion] = useState(false);
     const [addingColumn, setAddingColumn] = useState(false);
     const [addingTaskToColumn, setAddingTaskToColumn] = useState<number | null>(null);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
     const [columns, setColumns] = useState(board.columns || []);
+    const [showActivity, setShowActivity] = useState(false);
 
     // Subscribe to real-time board updates via WebSocket
     useBoardChannel({
@@ -90,7 +104,11 @@ export default function Show({ board, project, auth }: Props) {
     );
 
     const deleteBoard = () => {
-        router.delete(route('projects.boards.destroy', [project.id, board.id]));
+        router.delete(route('projects.boards.destroy', [project.id, board.id]), {
+            onSuccess: () => {
+                toast.success('Board deleted');
+            },
+        });
     };
 
     const handleDragStart = (event: DragStartEvent) => {
@@ -113,6 +131,12 @@ export default function Show({ board, project, auth }: Props) {
         const activeId = active.id;
         const overId = over.id;
 
+        // Check if dropping on a column droppable (for empty columns)
+        const isColumnDroppable = String(overId).startsWith('column-');
+        const columnIdFromDroppable = isColumnDroppable
+            ? parseInt(String(overId).replace('column-', ''), 10)
+            : null;
+
         let sourceColumn: Column | undefined;
         let destColumn: Column | undefined;
         let activeTaskFound: Task | undefined;
@@ -123,15 +147,10 @@ export default function Show({ board, project, auth }: Props) {
                 sourceColumn = col;
                 activeTaskFound = task;
             }
-            if (col.id === overId || col.tasks?.some(t => t.id === overId)) {
-                destColumn = col.tasks?.some(t => t.id === overId)
-                    ? col
-                    : columns.find(c => c.id === overId);
+            // Check if over a task in this column or the column itself
+            if (col.id === columnIdFromDroppable || col.tasks?.some(t => t.id === overId)) {
+                destColumn = col;
             }
-        }
-
-        if (!destColumn) {
-            destColumn = columns.find(c => c.id === overId);
         }
 
         if (!sourceColumn || !destColumn || !activeTaskFound) return;
@@ -164,6 +183,12 @@ export default function Show({ board, project, auth }: Props) {
         const activeId = active.id;
         const overId = over.id;
 
+        // Check if dropped on a column droppable (for empty columns)
+        const isColumnDroppable = String(overId).startsWith('column-');
+        const columnIdFromDroppable = isColumnDroppable
+            ? parseInt(String(overId).replace('column-', ''), 10)
+            : null;
+
         let currentColumn: Column | undefined;
         let task: Task | undefined;
 
@@ -177,6 +202,29 @@ export default function Show({ board, project, auth }: Props) {
         }
 
         if (!currentColumn || !task) return;
+
+        // If dropped on a column droppable (empty column or column area)
+        if (columnIdFromDroppable) {
+            const targetColumn = columns.find(c => c.id === columnIdFromDroppable);
+            if (targetColumn) {
+                const columnName = targetColumn.name;
+                const newPosition = targetColumn.tasks?.length || 0;
+                router.post(route('tasks.move', task.id), {
+                    column_id: columnIdFromDroppable,
+                    position: newPosition,
+                }, {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        toast.success(`Task moved to ${columnName}`);
+                    },
+                    onError: () => {
+                        toast.error('Failed to move task');
+                    },
+                });
+                return;
+            }
+        }
 
         const tasksInColumn = currentColumn.tasks || [];
         const overIndex = tasksInColumn.findIndex(t => t.id === overId);
@@ -194,12 +242,19 @@ export default function Show({ board, project, auth }: Props) {
             newPosition = overIndex;
         }
 
+        const columnName = currentColumn.name;
         router.post(route('tasks.move', task.id), {
             column_id: currentColumn.id,
             position: newPosition,
         }, {
             preserveScroll: true,
             preserveState: true,
+            onSuccess: () => {
+                toast.success(`Task moved to ${columnName}`);
+            },
+            onError: () => {
+                toast.error('Failed to move task');
+            },
         });
     };
 
@@ -226,6 +281,14 @@ export default function Show({ board, project, auth }: Props) {
                     </div>
                     {isOwnerOrAdmin && (
                         <div className="flex items-center gap-2">
+                            <Button
+                                variant={showActivity ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => setShowActivity(!showActivity)}
+                            >
+                                <History className="h-4 w-4" />
+                                Activity
+                            </Button>
                             <Button variant="outline" asChild>
                                 <Link href={route('projects.boards.edit', [project.id, board.id])}>
                                     <Settings className="h-4 w-4" />
@@ -255,42 +318,53 @@ export default function Show({ board, project, auth }: Props) {
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
             >
-                <div className="h-[calc(100vh-180px)] overflow-x-auto p-6">
-                    <div className="flex h-full gap-4">
-                        <SortableContext
-                            items={columns.map(c => c.id)}
-                            strategy={horizontalListSortingStrategy}
-                        >
-                            {columns.map((column) => (
-                                <ColumnComponent
-                                    key={column.id}
-                                    column={column}
-                                    boardId={board.id}
-                                    isOwnerOrAdmin={isOwnerOrAdmin}
-                                    addingTask={addingTaskToColumn === column.id}
-                                    onStartAddTask={() => setAddingTaskToColumn(column.id)}
-                                    onCancelAddTask={() => setAddingTaskToColumn(null)}
-                                />
-                            ))}
-                        </SortableContext>
-                        <div className="w-72 flex-shrink-0">
-                            {addingColumn ? (
-                                <AddColumnForm
-                                    boardId={board.id}
-                                    onCancel={() => setAddingColumn(false)}
-                                />
-                            ) : (
-                                <Button
-                                    variant="outline"
-                                    className="h-12 w-full border-dashed"
-                                    onClick={() => setAddingColumn(true)}
-                                >
-                                    <Plus className="mr-1 h-4 w-4" />
-                                    Add Column
-                                </Button>
-                            )}
+                <div className="flex h-[calc(100vh-180px)]">
+                    <div className={`flex-1 overflow-x-auto p-6 ${showActivity ? 'pr-0' : ''}`}>
+                        <div className="flex h-full gap-4">
+                            <SortableContext
+                                items={columns.map(c => c.id)}
+                                strategy={horizontalListSortingStrategy}
+                            >
+                                {columns.map((column) => (
+                                    <ColumnComponent
+                                        key={column.id}
+                                        column={column}
+                                        boardId={board.id}
+                                        isOwnerOrAdmin={isOwnerOrAdmin}
+                                        addingTask={addingTaskToColumn === column.id}
+                                        onStartAddTask={() => setAddingTaskToColumn(column.id)}
+                                        onCancelAddTask={() => setAddingTaskToColumn(null)}
+                                    />
+                                ))}
+                            </SortableContext>
+                            <div className="w-72 flex-shrink-0">
+                                {addingColumn ? (
+                                    <AddColumnForm
+                                        boardId={board.id}
+                                        onCancel={() => setAddingColumn(false)}
+                                    />
+                                ) : (
+                                    <Button
+                                        variant="outline"
+                                        className="h-12 w-full border-dashed"
+                                        onClick={() => setAddingColumn(true)}
+                                    >
+                                        <Plus className="mr-1 h-4 w-4" />
+                                        Add Column
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
+
+                    {showActivity && (
+                        <div className="w-80 flex-shrink-0 border-l bg-background p-4 overflow-y-auto">
+                            <ActivityFeed
+                                activities={recentActivity}
+                                columns={columns.map(c => ({ id: c.id, name: c.name }))}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 <DragOverlay>
@@ -388,6 +462,9 @@ function ColumnComponent({
     const deleteColumn = () => {
         router.delete(route('columns.destroy', column.id), {
             preserveScroll: true,
+            onSuccess: () => {
+                toast.success(`Column "${column.name}" deleted`);
+            },
         });
     };
 
@@ -400,6 +477,12 @@ function ColumnComponent({
     };
 
     const tasks = column.tasks || [];
+
+    // Make the column droppable even when empty
+    const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+        id: `column-${column.id}`,
+        data: { columnId: column.id },
+    });
 
     return (
         <div className="flex h-full w-72 flex-shrink-0 flex-col rounded-lg bg-muted">
@@ -462,7 +545,10 @@ function ColumnComponent({
                     </>
                 )}
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto p-2">
+            <div
+                ref={setDroppableRef}
+                className={`flex-1 space-y-2 overflow-y-auto p-2 min-h-[100px] ${isOver ? 'bg-primary/5 rounded-lg' : ''}`}
+            >
                 <SortableContext
                     items={tasks.map(t => t.id)}
                     strategy={verticalListSortingStrategy}
@@ -525,8 +611,12 @@ function AddTaskForm({ columnId, onCancel }: { columnId: number; onCancel: () =>
         post(route('columns.tasks.store', columnId), {
             preserveScroll: true,
             onSuccess: () => {
+                toast.success('Task created');
                 reset();
                 onCancel();
+            },
+            onError: () => {
+                toast.error('Failed to create task');
             },
         });
     };
