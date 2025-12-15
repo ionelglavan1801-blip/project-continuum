@@ -44,43 +44,6 @@ services:
     networks:
       - project_continuum
 
-  # Laravel Reverb WebSocket Server
-  reverb:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: project_continuum_app:latest
-    container_name: project_continuum_reverb
-    restart: unless-stopped
-    working_dir: /var/www/html
-    command: php artisan reverb:start --host=0.0.0.0 --port=8080
-    volumes:
-      - .:/var/www/html
-    ports:
-      - "${REVERB_SERVER_PORT:-8080}:8080"
-    environment:
-      - APP_ENV=${APP_ENV}
-      - APP_DEBUG=${APP_DEBUG}
-      - APP_KEY=${APP_KEY}
-      - DB_CONNECTION=${DB_CONNECTION}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_DATABASE=${DB_DATABASE}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REVERB_APP_ID=${REVERB_APP_ID}
-      - REVERB_APP_KEY=${REVERB_APP_KEY}
-      - REVERB_APP_SECRET=${REVERB_APP_SECRET}
-      - REVERB_HOST=${REVERB_HOST}
-      - REVERB_PORT=${REVERB_PORT}
-      - REVERB_SCHEME=${REVERB_SCHEME}
-    depends_on:
-      - redis
-    networks:
-      - project_continuum
-
   # Redis Commander (Redis GUI) - opțional, pornește cu --profile redis-gui
   redis-commander:
     image: rediscommander/redis-commander:latest
