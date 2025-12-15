@@ -25,6 +25,7 @@ jobs:
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'ENDSSH'
             set -e
+            export COMPOSE_FILE="docker-compose.yml:docker-compose.prod.yml"
             
             echo "🚀 Starting deployment..."
             cd ${{ secrets.DEPLOY_PATH }}
@@ -32,12 +33,16 @@ jobs:
             echo "📥 Pulling latest code from GitHub..."
             git pull origin main
             
+            echo "🔧 Fixing file permissions..."
+            sudo chown -R 1001:1001 storage bootstrap/cache
+            chmod -R 775 storage bootstrap/cache
+            
             echo "🐳 Rebuilding Docker containers..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml build app
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            docker compose build app
+            docker compose up -d
             
             echo "📦 Installing dependencies..."
-            docker compose exec -T app composer install --no-interaction --prefer-dist --optimize-autoloader
+            docker compose exec -T app composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
             
             echo "🎨 Building frontend assets..."
             docker compose exec -T app npm ci --prefer-offline --no-audit
@@ -52,7 +57,7 @@ jobs:
             docker compose exec -T app php artisan view:cache
             
             echo "🔄 Restarting workers..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml restart queue reverb
+            docker compose restart queue reverb
             
             echo "✅ Deployment completed!"
           ENDSSH
