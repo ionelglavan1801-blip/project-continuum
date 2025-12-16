@@ -8,6 +8,7 @@ use App\Http\Requests\InviteMemberRequest;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Models\Project;
+use App\Models\ProjectInvitation;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -79,8 +80,16 @@ class ProjectController extends Controller
             'labels',
         ]);
 
+        // Get pending invitations for this project
+        $pendingInvitations = $project->invitations()
+            ->with('inviter')
+            ->whereNull('accepted_at')
+            ->where('expires_at', '>', now())
+            ->get();
+
         return Inertia::render('Projects/Show', [
             'project' => $project,
+            'pendingInvitations' => $pendingInvitations,
         ]);
     }
 
@@ -130,11 +139,15 @@ class ProjectController extends Controller
     public function inviteMember(InviteMemberRequest $request, Project $project, InviteMember $inviteMember): RedirectResponse
     {
         try {
-            $inviteMember->execute($project, $request->validated());
+            $result = $inviteMember->execute($project, $request->validated());
+
+            $message = $result['type'] === 'added'
+                ? 'Member added successfully.'
+                : 'Invitation sent successfully.';
 
             return redirect()
                 ->back()
-                ->with('success', 'Member invited successfully.');
+                ->with('success', $message);
         } catch (\InvalidArgumentException $e) {
             return redirect()
                 ->back()
@@ -161,5 +174,24 @@ class ProjectController extends Controller
         return redirect()
             ->back()
             ->with('success', 'Member removed successfully.');
+    }
+
+    /**
+     * Cancel a pending invitation.
+     */
+    public function cancelInvitation(Project $project, ProjectInvitation $invitation): RedirectResponse
+    {
+        $this->authorize('update', $project);
+
+        // Make sure the invitation belongs to this project
+        if ($invitation->project_id !== $project->id) {
+            abort(404);
+        }
+
+        $invitation->delete();
+
+        return redirect()
+            ->back()
+            ->with('success', 'Invitation cancelled.');
     }
 }

@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Project extends Model
 {
@@ -55,20 +54,21 @@ class Project extends Model
     }
 
     /**
-     * Get all tasks in the project through boards and columns.
+     * Get all pending invitations for the project.
      */
-    public function tasks(): HasManyThrough
+    public function invitations(): HasMany
     {
-        return $this->hasManyThrough(
-            Task::class,
-            Column::class,
-            'board_id', // Foreign key on columns table
-            'column_id', // Foreign key on tasks table
-            'id', // Local key on projects table
-            'id' // Local key on columns table
-        )->whereHas('column.board', function ($query) {
+        return $this->hasMany(ProjectInvitation::class);
+    }
+
+    /**
+     * Get the count of tasks in this project through boards and columns.
+     */
+    public function getTasksCountAttribute(): int
+    {
+        return Task::whereHas('column.board', function ($query) {
             $query->where('project_id', $this->id);
-        });
+        })->count();
     }
 
     /**

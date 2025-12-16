@@ -1,8 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Project, PageProps, Board } from '@/types';
-import { Settings, Users, Plus, Trash2, LayoutGrid, ExternalLink, X } from 'lucide-react';
-import { useState, FormEventHandler } from 'react';
+import { Settings, Users, Plus, Trash2, LayoutGrid, ExternalLink, X, Clock, Mail } from 'lucide-react';
+import { useState, FormEventHandler, useEffect } from 'react';
 import Modal from '@/Components/Modal';
 import DangerButton from '@/Components/DangerButton';
 import SecondaryButton from '@/Components/SecondaryButton';
@@ -10,17 +10,43 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { toast } from 'sonner';
+
+interface PendingInvitation {
+    id: number;
+    email: string;
+    role: string;
+    expires_at: string;
+    created_at: string;
+    inviter: {
+        id: number;
+        name: string;
+    };
+}
 
 interface Props extends PageProps {
     project: Project;
+    pendingInvitations?: PendingInvitation[];
 }
 
-export default function Show({ project, auth }: Props) {
+export default function Show({ project, auth, pendingInvitations = [] }: Props) {
     const [confirmingDeletion, setConfirmingDeletion] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const isOwner = project.owner_id === auth.user.id;
     const isOwnerOrAdmin = isOwner ||
         project.members?.some(m => m.id === auth.user.id && m.pivot?.role === 'admin');
+
+    const { flash } = usePage<PageProps>().props;
+
+    // Show flash messages as toasts
+    useEffect(() => {
+        if (flash?.success) {
+            toast.success(flash.success);
+        }
+        if (flash?.error) {
+            toast.error(flash.error);
+        }
+    }, [flash]);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
@@ -46,6 +72,14 @@ export default function Show({ project, auth }: Props) {
             router.delete(route('projects.members.destroy', [project.id, userId]));
         }
     };
+
+    const cancelInvitation = (invitationId: number) => {
+        if (confirm('Are you sure you want to cancel this invitation?')) {
+            router.delete(route('projects.invitations.destroy', [project.id, invitationId]));
+        }
+    };
+
+    const totalTeamCount = 1 + (project.members?.filter(m => m.id !== project.owner_id).length || 0);
 
     return (
         <AuthenticatedLayout
@@ -97,7 +131,7 @@ export default function Show({ project, auth }: Props) {
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <Users className="h-5 w-5 text-gray-400" />
-                                <span className="text-sm font-medium text-gray-700">Team ({project.members?.length || 0} members)</span>
+                                <span className="text-sm font-medium text-gray-700">Team ({totalTeamCount} members)</span>
                             </div>
                             {isOwnerOrAdmin && (
                                 <button 
@@ -156,6 +190,46 @@ export default function Show({ project, auth }: Props) {
                                     </div>
                                 </div>
                             ))}
+
+                            {/* Pending Invitations */}
+                            {pendingInvitations.length > 0 && (
+                                <>
+                                    <div className="border-t my-3"></div>
+                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                        Pending Invitations ({pendingInvitations.length})
+                                    </p>
+                                    {pendingInvitations.map((invitation) => (
+                                        <div key={invitation.id} className="flex items-center justify-between py-2 opacity-75">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500">
+                                                    <Mail className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">{invitation.email}</p>
+                                                    <p className="text-xs text-gray-400 flex items-center gap-1">
+                                                        <Clock className="h-3 w-3" />
+                                                        Expires {new Date(invitation.expires_at).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-700">
+                                                    Pending ({invitation.role})
+                                                </span>
+                                                {isOwnerOrAdmin && (
+                                                    <button
+                                                        onClick={() => cancelInvitation(invitation.id)}
+                                                        className="text-gray-400 hover:text-red-500"
+                                                        title="Cancel invitation"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
                         </div>
                     </div>
 
