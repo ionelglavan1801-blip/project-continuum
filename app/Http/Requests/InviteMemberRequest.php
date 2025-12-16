@@ -20,7 +20,7 @@ class InviteMemberRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email', 'exists:users,email'],
+            'email' => ['required', 'email', 'max:255'],
             'role' => ['sometimes', 'in:admin,member'],
         ];
     }
@@ -31,7 +31,8 @@ class InviteMemberRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.exists' => 'No user found with this email address.',
+            'email.required' => 'Email address is required.',
+            'email.email' => 'Please enter a valid email address.',
         ];
     }
 }
