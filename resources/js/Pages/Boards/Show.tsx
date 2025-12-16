@@ -33,6 +33,8 @@ import {
     DndContext,
     DragOverlay,
     closestCorners,
+    pointerWithin,
+    rectIntersection,
     KeyboardSensor,
     PointerSensor,
     useSensor,
@@ -41,6 +43,7 @@ import {
     DragEndEvent,
     DragOverEvent,
     useDroppable,
+    CollisionDetection,
 } from '@dnd-kit/core';
 import {
     arrayMove,
@@ -73,6 +76,7 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
     const [addingColumn, setAddingColumn] = useState(false);
     const [addingTaskToColumn, setAddingTaskToColumn] = useState<number | null>(null);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
+    const [sourceColumnId, setSourceColumnId] = useState<number | null>(null);
     const [columns, setColumns] = useState(board.columns || []);
     const [showActivity, setShowActivity] = useState(false);
 
@@ -103,6 +107,43 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
         })
     );
 
+    // Custom collision detection that prioritizes column droppables for empty columns
+    const customCollisionDetection: CollisionDetection = (args) => {
+        // First, try to find collisions with tasks using closestCorners
+        const closestCornersCollisions = closestCorners(args);
+        
+        // If we found a task collision, use it
+        if (closestCornersCollisions.length > 0) {
+            const firstCollision = closestCornersCollisions[0];
+            // If it's a task (not a column droppable), return it
+            if (!String(firstCollision.id).startsWith('column-')) {
+                return closestCornersCollisions;
+            }
+        }
+        
+        // Otherwise, use pointerWithin to find column droppables
+        const pointerCollisions = pointerWithin(args);
+        if (pointerCollisions.length > 0) {
+            // Prioritize column droppables
+            const columnCollision = pointerCollisions.find(c => String(c.id).startsWith('column-'));
+            if (columnCollision) {
+                return [columnCollision];
+            }
+            return pointerCollisions;
+        }
+        
+        // Fallback to rectIntersection for any remaining cases
+        const rectCollisions = rectIntersection(args);
+        if (rectCollisions.length > 0) {
+            const columnCollision = rectCollisions.find(c => String(c.id).startsWith('column-'));
+            if (columnCollision) {
+                return [columnCollision];
+            }
+        }
+        
+        return closestCornersCollisions;
+    };
+
     const deleteBoard = () => {
         router.delete(route('projects.boards.destroy', [project.id, board.id]), {
             onSuccess: () => {
@@ -119,6 +160,7 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
             const task = column.tasks?.find(t => t.id === taskId);
             if (task) {
                 setActiveTask(task);
+                setSourceColumnId(column.id);
                 break;
             }
         }
@@ -176,9 +218,11 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
+        const originalSourceColumnId = sourceColumnId;
         setActiveTask(null);
+        setSourceColumnId(null);
 
-        if (!over) return;
+        if (!over || !originalSourceColumnId) return;
 
         const activeId = active.id;
         const overId = over.id;
@@ -189,6 +233,7 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
             ? parseInt(String(overId).replace('column-', ''), 10)
             : null;
 
+        // Find where the task currently is (after handleDragOver may have moved it)
         let currentColumn: Column | undefined;
         let task: Task | undefined;
 
@@ -203,57 +248,71 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
 
         if (!currentColumn || !task) return;
 
-        // If dropped on a column droppable (empty column or column area)
+        // Determine the target column ID
+        let targetColumnId: number;
+
         if (columnIdFromDroppable) {
-            const targetColumn = columns.find(c => c.id === columnIdFromDroppable);
-            if (targetColumn) {
-                const columnName = targetColumn.name;
-                const newPosition = targetColumn.tasks?.length || 0;
-                router.post(route('tasks.move', task.id), {
-                    column_id: columnIdFromDroppable,
-                    position: newPosition,
-                }, {
-                    preserveScroll: true,
-                    preserveState: true,
-                    onSuccess: () => {
-                        toast.success(`Task moved to ${columnName}`);
-                    },
-                    onError: () => {
-                        toast.error('Failed to move task');
-                    },
-                });
-                return;
+            // Dropped on a column droppable area
+            targetColumnId = columnIdFromDroppable;
+        } else {
+            // Dropped on a task - find which column that task is in
+            let targetCol: Column | undefined;
+            for (const col of columns) {
+                if (col.tasks?.some(t => t.id === overId)) {
+                    targetCol = col;
+                    break;
+                }
             }
+            // If the task itself was the over target, it's in currentColumn
+            if (!targetCol && overId === activeId) {
+                targetCol = currentColumn;
+            }
+            targetColumnId = targetCol?.id || currentColumn.id;
         }
 
-        const tasksInColumn = currentColumn.tasks || [];
-        const overIndex = tasksInColumn.findIndex(t => t.id === overId);
-        const activeIndex = tasksInColumn.findIndex(t => t.id === activeId);
+        // Calculate position in target column
+        const targetColumn = columns.find(c => c.id === targetColumnId);
+        const tasksInTarget = targetColumn?.tasks || [];
 
-        let newPosition = activeIndex;
-        if (overIndex !== -1 && activeIndex !== overIndex) {
-            setColumns(prevColumns => {
-                return prevColumns.map(col => {
-                    if (col.id !== currentColumn!.id) return col;
-                    const newTasks = arrayMove(col.tasks || [], activeIndex, overIndex);
-                    return { ...col, tasks: newTasks };
+        let newPosition: number;
+        if (targetColumnId === currentColumn.id) {
+            // Same column - find position based on over element
+            const overIndex = tasksInTarget.findIndex(t => t.id === overId);
+            const activeIndex = tasksInTarget.findIndex(t => t.id === activeId);
+            if (overIndex !== -1 && overIndex !== activeIndex) {
+                newPosition = overIndex;
+                // Update local state for same-column reorder
+                setColumns(prevColumns => {
+                    return prevColumns.map(col => {
+                        if (col.id !== targetColumnId) return col;
+                        const newTasks = arrayMove(col.tasks || [], activeIndex, overIndex);
+                        return { ...col, tasks: newTasks };
+                    });
                 });
-            });
-            newPosition = overIndex;
+            } else {
+                newPosition = activeIndex;
+            }
+        } else {
+            // Different column - append to end
+            newPosition = tasksInTarget.filter(t => t.id !== activeId).length;
         }
 
-        const columnName = currentColumn.name;
+        const columnName = targetColumn?.name || 'column';
         router.post(route('tasks.move', task.id), {
-            column_id: currentColumn.id,
+            column_id: targetColumnId,
             position: newPosition,
         }, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
-                toast.success(`Task moved to ${columnName}`);
+                if (targetColumnId !== originalSourceColumnId) {
+                    toast.success(`Task moved to ${columnName}`);
+                }
             },
             onError: () => {
                 toast.error('Failed to move task');
+                // Revert state on error by reloading
+                router.reload({ only: ['board'] });
             },
         });
     };
@@ -313,7 +372,7 @@ export default function Show({ board, project, auth, recentActivity = [] }: Prop
 
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCorners}
+                collisionDetection={customCollisionDetection}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
